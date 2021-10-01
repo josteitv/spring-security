@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import org.springframework.security.access.prepost.PostAuthorize
 import org.springframework.security.access.prepost.PreAuthorize
+import org.springframework.security.config.annotation.method.configuration.KotlinEnableReactiveMethodSecurityTests.MyAnnotation
 
 class KotlinReactiveMessageServiceImpl(val delegate: KotlinReactiveMessageService) : KotlinReactiveMessageService {
 
@@ -53,6 +54,13 @@ class KotlinReactiveMessageServiceImpl(val delegate: KotlinReactiveMessageServic
     }
 
     @PreAuthorize("hasRole('ADMIN')")
+    @MyAnnotation
+    override suspend fun suspendingPreAuthorizeWithMultipleAnnotations(): String {
+        delay(1)
+        return "exception not thrown"
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
     override suspend fun suspendingFlowPreAuthorize(): Flow<Int> {
         delay(1)
         return flow {
@@ -81,6 +89,18 @@ class KotlinReactiveMessageServiceImpl(val delegate: KotlinReactiveMessageServic
     }
 
     @PreAuthorize("hasRole('ADMIN')")
+    @MyAnnotation
+    override suspend fun suspendingFlowPreAuthorizeWithMultipleAnnotations(): Flow<Int> {
+        delay(1)
+        return flow {
+            for (i in 1..3) {
+                delay(1)
+                emit(i)
+            }
+        }
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
     override fun flowPreAuthorize(): Flow<Int> {
         return flow {
             for (i in 1..3) {
@@ -103,5 +123,16 @@ class KotlinReactiveMessageServiceImpl(val delegate: KotlinReactiveMessageServic
     @PreAuthorize("hasRole('ADMIN')")
     override fun flowPreAuthorizeDelegate(): Flow<Int> {
         return delegate.flowPreAuthorize()
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @MyAnnotation
+    override fun flowPreAuthorizeWithMultipleAnnotations(): Flow<Int> {
+        return flow {
+            for (i in 1..3) {
+                delay(1)
+                emit(i)
+            }
+        }
     }
 }

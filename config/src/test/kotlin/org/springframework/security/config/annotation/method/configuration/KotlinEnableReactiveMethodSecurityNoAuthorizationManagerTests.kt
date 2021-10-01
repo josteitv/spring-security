@@ -23,11 +23,18 @@ import io.mockk.verify
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import org.aopalliance.intercept.MethodInterceptor
+import org.aopalliance.intercept.MethodInvocation
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.junit.After
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.jupiter.api.fail
+import org.springframework.aop.framework.autoproxy.AbstractBeanFactoryAwareAdvisingPostProcessor
+import org.springframework.aop.support.DefaultPointcutAdvisor
+import org.springframework.aop.support.annotation.AnnotationMatchingPointcut
+import org.springframework.beans.factory.InitializingBean
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -127,6 +134,19 @@ class KotlinEnableReactiveMethodSecurityNoAuthorizationManagerTests {
 
     @Test
     @WithMockUser(authorities = ["ROLE_ADMIN"])
+    fun `suspendingPreAuthorizeWithMultipleAnnotations should proceed to next annotation`() {
+        runBlocking {
+            try {
+                messageService!!.suspendingPreAuthorizeWithMultipleAnnotations()
+                fail("Should throw exception")
+            } catch (e: Exception) {
+                assertThat(e.message).isEqualTo("Exception thrown")
+            }
+        }
+    }
+
+    @Test
+    @WithMockUser(authorities = ["ROLE_ADMIN"])
     fun `suspendingFlowPreAuthorize when user has role then success`() {
         runBlocking {
             assertThat(messageService!!.suspendingFlowPreAuthorize().toList()).containsExactly(1, 2, 3)
@@ -166,6 +186,19 @@ class KotlinEnableReactiveMethodSecurityNoAuthorizationManagerTests {
             }
         }
         verify { delegate wasNot Called }
+    }
+
+    @Test
+    @WithMockUser(authorities = ["ROLE_ADMIN"])
+    fun `suspendingFlowPreAuthorizeWithMultipleAnnotations should proceed to next annotation`() {
+        runBlocking {
+            try {
+                messageService!!.suspendingFlowPreAuthorizeWithMultipleAnnotations().toList()
+                fail("Should throw exception")
+            } catch (e: Exception) {
+                assertThat(e.message).isEqualTo("Exception thrown")
+            }
+        }
     }
 
     @Test
@@ -211,6 +244,21 @@ class KotlinEnableReactiveMethodSecurityNoAuthorizationManagerTests {
         verify { delegate wasNot Called }
     }
 
+    @Test
+    @WithMockUser(authorities = ["ROLE_ADMIN"])
+    fun `flowPreAuthorizeWithMultipleAnnotations should proceed to next annotation`() {
+        runBlocking {
+            try {
+                messageService!!.flowPreAuthorizeWithMultipleAnnotations().toList()
+                fail("Should throw exception")
+            } catch (e: Exception) {
+                assertThat(e.message).isEqualTo("Exception thrown")
+            }
+        }
+    }
+
+    internal annotation class MyAnnotation
+
     @Configuration
     @EnableReactiveMethodSecurity(useAuthorizationManager = false)
     open class Config {
@@ -231,5 +279,27 @@ class KotlinEnableReactiveMethodSecurityNoAuthorizationManagerTests {
                 return r
             }
         }
+
+        @Bean
+        open fun myAnnotationPostProcessor(): MyAnnotationPostProcessor {
+            return MyAnnotationPostProcessor()
+        }
+
+        class MyAnnotationPostProcessor : AbstractBeanFactoryAwareAdvisingPostProcessor(), InitializingBean {
+            override fun afterPropertiesSet() {
+                isProxyTargetClass = true
+                advisor = DefaultPointcutAdvisor(
+                    AnnotationMatchingPointcut(null, MyAnnotation::class.java),
+                    MyAnnotationInterceptor()
+                )
+            }
+        }
+
+        class MyAnnotationInterceptor : MethodInterceptor {
+            override fun invoke(invocation: MethodInvocation): Any? {
+                throw Exception("Exception thrown")
+            }
+        }
+
     }
 }
